@@ -3,9 +3,12 @@
 object SshDsl {
   import fr.janalyse.ssh._
 
-  case class EndPoint(host:String, port:Int)
-  implicit class EndPointHelper(val sc:StringContext) extends AnyVal {
-    def ep(args: Any*):EndPoint = {
+  case class SshEndPoint(host:String, username:String=SshEndPoint.defaultUserName, port:Int=22)
+  object SshEndPoint {
+    val defaultUserName=scala.util.Properties.userName
+  }
+  implicit class SshEndPointHelper(val sc:StringContext) extends AnyVal {
+    def ep(args: Any*):SshEndPoint = {
       val strings = sc.parts.iterator
       val expressions = args.iterator
       var buf = new StringBuffer(strings.next)
@@ -13,31 +16,38 @@ object SshDsl {
         buf append expressions.next
         buf append strings.next
       }
-      val parts = buf.toString.split(":",2)
-      EndPoint(parts.head, parts.drop(1).headOption.map(_.toInt).getOrElse(22))
+      val EpRE="""([a-zA-Z_]@)?([^:]+)(?::(\d+))?""".r
+      buf.toString match {
+        case EpRE(user,host,port) =>  // TODO : not safe
+          SshEndPoint(
+            host=host,
+            username=Option(user).getOrElse(SshEndPoint.defaultUserName),
+            port = Option(port).map(_.toInt).getOrElse(22)
+          )
+      }
     }
   }
-  implicit class EndPointToAccessPath(from:EndPoint) {
-    def <~>(to:EndPoint):AccessPath = AccessPath(from::to::Nil)
+  implicit class SshEndPointToAccessPath(from:SshEndPoint) {
+    def <~>(to:SshEndPoint):AccessPath = AccessPath(from::to::Nil)
   }
 
-  case class AccessPath(endpoints:List[EndPoint]) {
-    def <~>(to:EndPoint):AccessPath = AccessPath(endpoints:+to)
+  case class AccessPath(endpoints:List[SshEndPoint]) {
+    def <~>(to:SshEndPoint):AccessPath = AccessPath(endpoints:+to)
   }
 
   class ServerContext(name:String) {
-    var path = AccessPath(EndPoint("127.0.0.1",22)::Nil)
+    var path = AccessPath(SshEndPoint("127.0.0.1")::Nil)
     def path_(newPath:AccessPath):Unit = {path=newPath}
     def pshell[T] (proc : SSHShell => T):T = {
-      def intricate(endpoints:Iterable[EndPoint], lport:Option[Int]=None):T = {
+      def intricate(endpoints:Iterable[SshEndPoint], lport:Option[Int]=None):T = {
         endpoints.headOption match {
           case Some(endpoint) if lport.isDefined => // intricate tunnel
-            SSH.once("127.0.0.1", port=lport.get) { ssh =>
+            SSH.once("127.0.0.1", username=endpoint.username, port=lport.get) { ssh =>
               val newPort = ssh.remote2Local(endpoint.host,endpoint.port)
               intricate(endpoints.tail, Some(newPort))
            }
           case Some(endpoint)  => // first tunnel
-            SSH.once(endpoint.host, port=endpoint.port) { ssh =>
+            SSH.once(endpoint.host, username=endpoint.username, port=endpoint.port) { ssh =>
               val newPort = ssh.remote2Local("127.0.0.1",22)
               intricate(endpoints.tail, Some(newPort))
            }
