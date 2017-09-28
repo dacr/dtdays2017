@@ -47,7 +47,7 @@ object SshDsl {
         buf append expressions.next
         buf append strings.next
       }
-      val EpRE="""([a-zA-Z_]@)?([^~]+)(?:~(\d+))?""".r
+      val EpRE="""([a-zA-Z0-9_]+@)?([^~]+)(?:~(\d+))?""".r
       buf.toString match {
         case EpRE(user,host,port) =>  // TODO : not safe
           SshEndPoint(
