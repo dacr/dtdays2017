@@ -2,13 +2,19 @@
 
 object SshDsl {
   import fr.janalyse.ssh._
+  import com.jcraft.jsch.ProxyHTTP
 
-  case class SshEndPoint(host:String, username:String=SshEndPoint.defaultUserName, port:Int=22)
-  object SshEndPoint {
-    val defaultUserName=scala.util.Properties.userName
+  sealed trait EndPoint {
+    val host:String
+    val port:Int
   }
-  implicit class SshEndPointHelper(val sc:StringContext) extends AnyVal {
-    def ep(args: Any*):SshEndPoint = {
+
+  case class ProxyEndPoint(host:String, port:Int=ProxyEndPoint.defaultPort) extends EndPoint
+  object ProxyEndPoint {
+    val defaultPort=3128
+  }
+  implicit class ProxyEndPointHelper(val sc:StringContext) extends AnyVal {
+    def proxy(args: Any*):ProxyEndPoint = {
       val strings = sc.parts.iterator
       val expressions = args.iterator
       var buf = new StringBuffer(strings.next)
@@ -16,38 +22,73 @@ object SshDsl {
         buf append expressions.next
         buf append strings.next
       }
-      val EpRE="""([a-zA-Z_]@)?([^:]+)(?::(\d+))?""".r
+      val EpRE="""([^~]+)(?:~(\d+))?""".r
+      buf.toString match {
+        case EpRE(host,port) =>  // TODO : not safe
+          ProxyEndPoint(
+            host=host,
+            port = Option(port).map(_.toInt).getOrElse(ProxyEndPoint.defaultPort)
+          )
+      }
+    }
+  }
+
+  case class SshEndPoint(host:String, username:String=SshEndPoint.defaultUserName, port:Int=SshEndPoint.defaultPort) extends EndPoint
+  object SshEndPoint {
+    val defaultUserName=scala.util.Properties.userName
+    val defaultPort=22
+  }
+  implicit class SshEndPointHelper(val sc:StringContext) extends AnyVal {
+    def ssh(args: Any*):SshEndPoint = {
+      val strings = sc.parts.iterator
+      val expressions = args.iterator
+      var buf = new StringBuffer(strings.next)
+      while(strings.hasNext) {
+        buf append expressions.next
+        buf append strings.next
+      }
+      val EpRE="""([a-zA-Z_]@)?([^~]+)(?:~(\d+))?""".r
       buf.toString match {
         case EpRE(user,host,port) =>  // TODO : not safe
           SshEndPoint(
             host=host,
             username=Option(user).getOrElse(SshEndPoint.defaultUserName),
-            port = Option(port).map(_.toInt).getOrElse(22)
+            port = Option(port).map(_.toInt).getOrElse(SshEndPoint.defaultPort)
           )
       }
     }
   }
-  implicit class SshEndPointToAccessPath(from:SshEndPoint) {
-    def <~>(to:SshEndPoint):AccessPath = AccessPath(from::to::Nil)
+
+
+
+  implicit class EndPointToAccessPath(from:EndPoint) {
+    def <~>(to:EndPoint):AccessPath = AccessPath(from::to::Nil)
   }
 
-  case class AccessPath(endpoints:List[SshEndPoint]) {
-    def <~>(to:SshEndPoint):AccessPath = AccessPath(endpoints:+to)
+
+  case class AccessPath(endpoints:List[EndPoint]) {
+    def <~>(to:EndPoint):AccessPath = AccessPath(endpoints:+to)
   }
 
   class ServerContext(name:String) {
     var path = AccessPath(SshEndPoint("127.0.0.1")::Nil)
     def path_(newPath:AccessPath):Unit = {path=newPath}
     def pshell[T] (proc : SSHShell => T):T = {
-      def intricate(endpoints:Iterable[SshEndPoint], lport:Option[Int]=None):T = {
+      def intricate(endpoints:Iterable[EndPoint], lport:Option[Int]=None, through:Option[ProxyEndPoint]=None):T = {
         endpoints.headOption match {
-          case Some(endpoint) if lport.isDefined => // intricate tunnel
-            SSH.once("127.0.0.1", username=endpoint.username, port=lport.get) { ssh =>
+          case Some(endpoint:ProxyEndPoint) =>
+            intricate(endpoints.tail, lport, Some(endpoint))
+          case Some(endpoint:SshEndPoint) if lport.isDefined => // intricate tunnel
+            val proxy = through.map(p => new ProxyHTTP(p.host, p.port))
+            val opts = SSHOptions("127.0.0.1", username=endpoint.username, port=lport.get, proxy=proxy)
+            SSH.once(opts) { ssh =>
               val newPort = ssh.remote2Local(endpoint.host,endpoint.port)
               intricate(endpoints.tail, Some(newPort))
            }
-          case Some(endpoint)  => // first tunnel
-            SSH.once(endpoint.host, username=endpoint.username, port=endpoint.port) { ssh =>
+          case Some(endpoint:SshEndPoint)  => // first tunnel
+            val proxy = through.map(p => new ProxyHTTP(p.host, p.port))
+            val opts=SSHOptions(endpoint.host, username=endpoint.username, port=endpoint.port, proxy=proxy)
+            SSH.once(opts) { ssh =>
               val newPort = ssh.remote2Local("127.0.0.1",22)
               intricate(endpoints.tail, Some(newPort))
            }
@@ -95,7 +136,7 @@ object test {
   def main(args: Array[String]): Unit = {
     import SshDsl._
     server("srv1") {
-      access(ep"127.0.0.1:22" <~> ep"127.0.0.2:22" <~> ep"127.0.0.3:22")
+      access(proxy"127.0.0.1~3128" <~> ssh"127.0.0.1~22" <~> ssh"127.0.0.2~22" <~> ssh"127.0.0.3~22")
       //service("web1") on 80
     }
 
@@ -109,8 +150,4 @@ object test {
     }
 */
   }
-}
-
-package object __root__ {
-  val x=1
 }
