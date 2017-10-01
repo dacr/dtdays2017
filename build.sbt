@@ -19,7 +19,7 @@ lazy val root = (project in file(".")).
     libraryDependencies ++= Seq(
       "com.novocode" % "junit-interface"   % "0.11" % "test",
       "fr.janalyse"  % "naturalsort_2.11"  % "0.2.0",
-      "fr.janalyse"  % "janalyse-ssh_2.11" % "0.10.1"
+      "fr.janalyse"  % "janalyse-ssh_2.11" % "0.10.2"
     )
   )
 
