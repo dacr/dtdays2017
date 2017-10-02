@@ -136,18 +136,13 @@ object test {
   def main(args: Array[String]): Unit = {
     import SshDsl._
     server("srv1") {
-      access(proxy"127.0.0.1~3128" <~> ssh"127.0.0.1~22" <~> ssh"127.0.0.2~22" <~> ssh"127.0.0.3~22")
-      //service("web1") on 80
+      access(proxy"127.0.0.1~3128" <~> ssh"dcr@127.0.0.1~22" <~> ssh"test@127.0.0.1~22")
     }
 
     shell("srv1") {
-      ls.take(10).map{println}
-      println(exec("netstat -anp | grep LISTEN | grep 127.0.0"))
-    }
-/*
-    http("srv1" / "web1") {
-      get("/server-status?auto")
-    }
-*/
+       ls.take(5).map{println}
+       println("=> I AM "+exec("whoami"))
+    } 
+    
   }
 }
