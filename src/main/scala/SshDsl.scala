@@ -4,15 +4,6 @@ object SshDsl {
   import fr.janalyse.ssh._
   import com.jcraft.jsch.ProxyHTTP
 
-  sealed trait EndPoint {
-    val host:String
-    val port:Int
-  }
-
-  case class ProxyEndPoint(host:String, port:Int=ProxyEndPoint.defaultPort) extends EndPoint
-  object ProxyEndPoint {
-    val defaultPort=3128
-  }
   implicit class ProxyEndPointHelper(val sc:StringContext) extends AnyVal {
     def proxy(args: Any*):ProxyEndPoint = {
       val strings = sc.parts.iterator
@@ -33,11 +24,6 @@ object SshDsl {
     }
   }
 
-  case class SshEndPoint(host:String, username:String=SshEndPoint.defaultUserName, port:Int=SshEndPoint.defaultPort) extends EndPoint
-  object SshEndPoint {
-    val defaultUserName=scala.util.Properties.userName
-    val defaultPort=22
-  }
   implicit class SshEndPointHelper(val sc:StringContext) extends AnyVal {
     def ssh(args: Any*):SshEndPoint = {
       val strings = sc.parts.iterator
@@ -65,9 +51,8 @@ object SshDsl {
     def <~>(to:EndPoint):AccessPath = AccessPath(from::to::Nil)
   }
 
-
-  case class AccessPath(endpoints:List[EndPoint]) {
-    def <~>(to:EndPoint):AccessPath = AccessPath(endpoints:+to)
+  implicit class AccessPathHelper(path:AccessPath) {
+    def <~>(to:EndPoint):AccessPath = path.copy(path.endpoints:+to)
   }
 
   class ServerContext(name:String) {
@@ -136,7 +121,8 @@ object test {
   def main(args: Array[String]): Unit = {
     import SshDsl._
     server("srv1") {
-      access(proxy"127.0.0.1~3128" <~> ssh"dcr@127.0.0.1~22" <~> ssh"test@127.0.0.1~22")
+      //access(proxy"127.0.0.1~3128" <~> ssh"dcr@127.0.0.1~22" <~> ssh"test@127.0.0.1~22")
+      access(ssh"dcr@127.0.0.1~22" <~> ssh"test@127.0.0.1~22")
     }
 
     shell("srv1") {
