@@ -389,31 +389,6 @@ EndPointHelper(StringContext("192.168.1.10:","")).ep(port)
 
 ---
 
-## DSL example : snapconf defaults KB configuration
-
-```
-("unix" ^ "apache" ^ "httpd") --> List(
-	"Timeout"              default 60,
-	"KeepAlive"            default true,
-	"KeepAliveTimeout"     default 15 below "2.4.0",
-	"KeepAliveTimeout"     default 5  from  "2.4.0",
-	"MaxKeepAliveRequests" default 100,
-	"LogLevel"             default "warn"
-	)
-("generic" ^ "php") --> List(
-	"allow_call_time_pass_reference" default "1" below "PHP"->"5.4.0" ,
-	"allow_url_fopen"                default "1" ,
-	"allow_url_include"              default "0" from "PHP"->"5.2.0",
-	"always_populate_raw_post_data"  default "0" from "PHP"->"4.1.0",
-	"apc.cache_by_default"           default "1" from "APC"->"3.0.0",
-	"apc.enabled"                    default "1" ,
-	"apc.enable_cli"                 default "0" from "APC"->"3.0.7",
-	"apc.file_update_protection"     default "2" from "APC"->"3.0.6" // ...
-)
-```
-
----
-
 ## DSL example : [better-files](https://github.com/pathikrit/better-files#unix-dsl)
 
 ```
