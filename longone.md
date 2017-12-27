@@ -419,10 +419,10 @@ chown(owner, file)
 ```scala
 import SshDsl._
 session {
-  server("srv1" -> proxy"127.0.0.1~3128" ^ ssh"dcr@127.0.0.1~22")
-  server("srv2" -> ssh"centos@10.236.240.75" ^ ssh"centos@10.100.0.52")
+  //server("srv1" -> proxy"127.0.0.1~3128" ^ ssh"dcr@127.0.0.1~22")
+  server("srv2" -> ssh"dcr@127.0.0.1~22" ^ ssh"dcr@127.0.0.1~22" ^ ssh"dcr@127.0.0.1~22")
 } {
-  shell("srv1") { println(s"Hello from $hostname $whoami $pwd") }
+  //shell("srv1") { println(s"Hello from $hostname $whoami $pwd") }
   shell("srv2") { println(s"Hello from $hostname $whoami $pwd, uptime=$uptime") }
 }
 ```
